@@ -1,0 +1,6 @@
+Revision history for Perl extension SVG::Plot.
+
+0.01  Sat May 10 22:23:00 2003
+	- original version; created by h2xs 1.22 with options
+		SVG::Plot -X
+
