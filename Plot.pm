@@ -38,12 +38,13 @@ see B<new> for a list of parameters you can give to the plot. (overriding the st
 
 package SVG::Plot;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 use strict;
 use SVG;
 use Carp qw( croak );
+use Algorithm::Points::MinimumDistance;
 
-use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( debug grid scale points pointsets image point_style point_size margin line line_style max_width max_height ) ];
+use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( debug grid scale points pointsets image point_style point_size min_point_size max_point_size margin line line_style max_width max_height ) ];
 
 =head1 METHODS
 
@@ -54,7 +55,7 @@ use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( debug grid scale
   use SVG::Plot;
 
   # Simple use - single set of points, all in same style.
-  my $points = [ [0, 1, 'http://uri/'], [2, 3, '/uri/foo.png] ];
+  my $points = [ [0, 1, 'http://uri/'], [2, 3, '/uri/foo.png'] ];
   my $plot = SVG::Plot->new(
                              points => \@points,
 		             point_size => 3,
@@ -115,6 +116,13 @@ reduced if necessary in order to keep the width down.
 
 If C<debug> is set to true then debugging information is emitted as
 warnings.
+
+If C<point_size> is set to C<AUTO> then
+L<Algorithm::Points::MinimumDistance> will be used to make the point
+circles as large as possible without overlapping, within the
+constraints of C<min_point_size> (which defaults to 1) and
+C<max_point_size> (which defaults to 10).  Note that if you have multiple
+pointsets then the point circle sizes will be worked out I<per set>.
 
 All arguments have get_set accessors like so:
 
@@ -187,22 +195,30 @@ sub plot {
     my @pointset_data;
 
     if ( $self->points ) {
-        push @pointset_data, { points      => $self->points,
-			       point_size  => $self->point_size,
-			       point_style => $self->point_style,
-			       line        => $self->line,
-			       line_style  => $self->line_style };
+        push @pointset_data, { points         => $self->points,
+			       point_size     => $self->point_size,
+			       min_point_size => $self->min_point_size,
+			       max_point_size => $self->max_point_size,
+			       point_style    => $self->point_style,
+			       line           => $self->line,
+			       line_style     => $self->line_style };
     }
 
     foreach my $pointset ( @{$self->pointsets || []} ) {
         push @pointset_data, $pointset;
     }
 
+    my %defaults = ( point_size     => $self->point_size,
+		     min_point_size => $self->min_point_size,
+		     max_point_size => $self->max_point_size,
+		     point_style    => $self->point_style );
+
     foreach my $dataset ( @pointset_data ) {
         $self->_plot_pointset( svg         => $svg,
 			       margin      => $m,
 			       grid        => $grid,
 			       scale       => $scale,
+                               %defaults, # can be overridden by %$dataset
                                %$dataset );
     }
 
@@ -210,13 +226,14 @@ sub plot {
 }
 
 # Adds a pointset to the SVG plot - pass in args svg, margin, grid, scale,
-# points, point_size, point_style, line, line_style.
+# points, point_size, min_point_size, max_point_size, point_style,
+# line, line_style.
 sub _plot_pointset {
     my ($self, %args) = @_;
     my $points = $args{points} or croak "no points in pointset!";
+    scalar @$points or croak "no points in pointset!";
     my $svg = $args{svg} or croak "no SVG object passed";
     my $scale = $args{scale} or croak "no scale passed";
-
     my $point_style = $args{point_style} || { stroke => 'red',
 					      fill => 'white' };
 
@@ -225,7 +242,28 @@ sub _plot_pointset {
 	               style => $point_style
 	             );
 
-    my $point_size = $args{point_size} || 3;
+    my $point_size = $args{point_size};
+    if ( $point_size eq "AUTO" ) {
+        my $min_size = $args{min_point_size} || 1;
+        my $max_size = $args{max_point_size} || 10;
+        # Make sure we don't send URIs to A::P::MD
+        my @coords = map { [ $_->[0], $_->[1] ] } @$points;
+        my $boxsize = 1 + sprintf("%d", $max_size/$scale);
+        my $dists = Algorithm::Points::MinimumDistance->new(
+            points  => \@coords,
+            boxsize => $boxsize );
+        my $min_dist = $dists->min_distance;
+        my $auto_size = sprintf("%d", $scale*$min_dist/2);
+        $point_size = $auto_size;
+        if ( $min_size and $point_size < $min_size ) {
+            $point_size = $min_size;
+        }
+        if ( $max_size and $point_size > $max_size ) {
+            $point_size = $max_size;
+        }
+    }
+
+    $point_size ||= 3;
     my $plotted;
 
     foreach (@$points) {

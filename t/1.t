@@ -135,7 +135,7 @@ $plot = SVG::Plot->new( pointsets   => [ { points => $pubs
                                            point_style => { fill => "red" }
                                          }
                                        ],
-                        point_size  => 3,
+                        point_size  => 2,
                         point_style => { fill => "blue" }
 );
 eval { $plot->plot; };
@@ -151,7 +151,7 @@ like( $output, qr/xlink:href="http:\/\/example.com\/\?x=524099;y=178350"[^>]*>\s
 
 like( $output, qr/xlink:href="http:\/\/example.com\/\?x=523385;y=178489"/,
       "...point from pub set is included" );
-like( $output, qr/xlink:href="http:\/\/example.com\/\?x=523385;y=178489"[^>]*>\s*<circle[^>]*r="3"/,
+like( $output, qr/xlink:href="http:\/\/example.com\/\?x=523385;y=178489"[^>]*>\s*<circle[^>]*r="2"/,
       "...uses default point size" );
 
 # The lines below would be the right way to test this but Test::XML::Xpath

@@ -1,5 +1,11 @@
 Revision history for Perl extension SVG::Plot.
 
+0.05  Optionally use Algorithm::Points::MinimumDistance to work out the
+      radii for the plotted points.
+
+      Fixed bug with default point sizes and styles not getting passed
+      through with multiple pointsets.
+
 0.04  You can now supply more than one set of points, to be plotted in
       different styles.
 

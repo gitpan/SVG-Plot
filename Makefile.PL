@@ -7,6 +7,7 @@ WriteMakefile(
     'VERSION_FROM'	=> 'Plot.pm', # finds $VERSION
     'PREREQ_PM'		=> { Class::MethodMaker => 0.1,
                              SVG => 0.1,
+                             Algorithm::Points::MinimumDistance => 0,
                              XML::XPath => 0, # for testing
                              Test::XML => '0.04' # XPath tests
                            },
