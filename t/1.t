@@ -1,7 +1,7 @@
 use strict;
 use Test::XML::XPath;
 use XML::XPath;
-use Test::More tests => 18;
+use Test::More tests => 23;
 BEGIN { use_ok('SVG::Plot') };
 
 my $points = [ [0, 1, "http://example.com/?x=0;y=1"],
@@ -30,6 +30,7 @@ like_xpath( $output, '/svg[@width="20"][@height="20"]',
       "image dimensions as expected with default scale and margin" );
 like_xpath( $output, '//circle[@cx="5"][@cy="15"]',
       "...and first point where we expect it" );
+#print $output . "\n";
 
 $plot->scale(100);
 $output = $plot->plot;
@@ -49,10 +50,16 @@ like_xpath( $output, '//circle[@cx="25"][@cy="35"]',
 # Now try constraining the image size.  (Data taken from grubstreet model
 # of Hammersmith.)
 my $hammersmith_points = [ ];
+my $pubs = [ ];
+my $stations = [ ];
 while ( <DATA> ) {
     chomp;
-    my ($x, $y) = split / /;
+    my ($x, $y, $thing) = split / /;
     push @$hammersmith_points, [$x, $y, "http://example.com/?x=$x;y=$y"];
+    push @$pubs, [$x, $y, "http://example.com/?x=$x;y=$y"]
+        if ($thing and $thing eq "pub");
+    push @$stations, [$x, $y, "http://example.com/?x=$x;y=$y"]
+        if ($thing and $thing eq "station");
 }
 
 ## Width tests first.
@@ -120,23 +127,60 @@ ok( $height <= 400,
     "max_height parameter respected when max height/width specified" );
 ok( $width <= 800, "...max_width too" );
 
+##### Test multiple pointsets.
+$plot = SVG::Plot->new( pointsets   => [ { points => $pubs
+                                         },
+                                         { points => $stations,
+                                           point_size => 6,
+                                           point_style => { fill => "red" }
+                                         }
+                                       ],
+                        point_size  => 3,
+                        point_style => { fill => "blue" }
+);
+eval { $plot->plot; };
+is( $@, "", "->plot doesn't die if pointsets is supplied instead of points" );
+$output = $plot->plot;
+#print $output . "\n";
+
+# yuck
+like( $output, qr/xlink:href="http:\/\/example.com\/\?x=524099;y=178350"/,
+      "...point from station set is included" );
+like( $output, qr/xlink:href="http:\/\/example.com\/\?x=524099;y=178350"[^>]*>\s*<circle[^>]*r="6"/,
+      "...uses specified point size" );
+
+like( $output, qr/xlink:href="http:\/\/example.com\/\?x=523385;y=178489"/,
+      "...point from pub set is included" );
+like( $output, qr/xlink:href="http:\/\/example.com\/\?x=523385;y=178489"[^>]*>\s*<circle[^>]*r="3"/,
+      "...uses default point size" );
+
+# The lines below would be the right way to test this but Test::XML::Xpath
+# isn't happy with the "xlink:".
+#like_xpath( $output,
+#            '//a[@xlink:href="http://example.com/?x=524099;y=178350"]',
+#            "...point from station set is included" );
+#like_xpath( $output,
+#            '//svg/g/a[@xlink:href="http://example.com/?x=523385;y=178489"]',
+#            "...point from pub set is included" );
+
+
 __DATA__
 519478 179613
 521930 182978
 522575 178602
-524099 178350
-523385 178489
-521970 178786
-522770 179023
+524099 178350 station
+523385 178489 pub
+521970 178786 pub
+522770 179023 pub
 523479 178088
 523416 178325
-523474 178483
+523474 178483 station
 523302 178304
 522122 178659
-522959 178749
-522909 178232
+522959 178749 pub
+522909 178232 pub
 522780 178578
 523158 178661
-522570 178728
+522570 178728 station
 523368 178583
 523393 178517

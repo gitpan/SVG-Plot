@@ -1,22 +1,23 @@
 =head1 NAME
 
-   SVG::Plot - a simple module to take a set of x,y points and plot them on a plane
+SVG::Plot - a simple module to take one or more sets of x,y points and plot them on a plane
 
 =head1 SYNOPSIS
 
    use SVG::Plot;
-   my $points = [[0,1,'http://uri/'],[2,3,'/uri/foo.png]];
+   my $points = [[0,1,'http://uri/'],[2,3,'/uri/foo.png']];
    my $plot = SVG::Plot->new(
-                              points => \@points,
+                              points => $points,
                               debug => 0,
-			      scale => 0.025,
+                              scale => 0.025,
                               max_width => 800,
                               max_height => 400,
-			      point_size => 3,
-			      point_style => {
-			      fill => 'blue',
-			      stroke => 'yellow'},
-      			      line => 'follow',
+                              point_size => 3,
+                              point_style => {
+                                  fill => 'blue',
+                                  stroke => 'yellow'
+                              },
+                              line => 'follow',
                               margin => 6,
                             ); 
    # -- or --
@@ -25,34 +26,125 @@
 
    print $plot->plot;
 
-If C<debug> is set to true then debugging information is emitted as
-warnings.  Note that the actual margin will be half of the value set
-in C<margin>, since half of it goes to each side.  If C<max_width>
-and/or C<max_height> is set then C<scale> will be reduced if necessary
-in order to keep the width down.
+=head1 DESCRIPTION
 
-C<plot> will croak if C<max_width> or C<max_height> is smaller than
-C<margin>, since this is impossible.
+a very simple module which allows you to give one or more sets of points [x co-ord, y co-ord and optional http uri]) and plot them in SVG. 
+
+$plot->points($points) where $points is a reference to an array of array references. 
+
+see B<new> for a list of parameters you can give to the plot. (overriding the styles on the ponts; sizing a margin; setting a scale; optionally drawing a line ( line => 'follow' ) between the points in the order they are specified.
 
 =cut
 
 package SVG::Plot;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 use strict;
 use SVG;
 use Carp qw( croak );
 
-use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( debug grid scale points image point_style point_size margin line line_style max_width max_height ) ];
+use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( debug grid scale points pointsets image point_style point_size margin line line_style max_width max_height ) ];
+
+=head1 METHODS
+
+=over 4
+
+=item B<new>
+
+  use SVG::Plot;
+
+  # Simple use - single set of points, all in same style.
+  my $points = [ [0, 1, 'http://uri/'], [2, 3, '/uri/foo.png] ];
+  my $plot = SVG::Plot->new(
+                             points => \@points,
+		             point_size => 3,
+		             point_style => {
+		                 fill => 'blue',
+		                 stroke => 'yellow'},
+      		             line => 'follow',
+                             debug => 0,
+		             scale => 0.025,
+                             max_width => 800,
+                             max_height => 400,
+                             margin => 6,
+                           );
+
+  # Prepare to plot two sets of points, in distinct styles.
+  my $pubs      = [
+      [ 522770, 179023, "http://example.com/?Andover_Arms ],
+      [ 522909, 178232, "http://example.com/?Blue Anchor  ] ];
+  my $stations  = [
+      [ 523474, 178483, "http://example.com/?Hammersmith" ] ];
+  my $pointsets = [ { points => $pubs,
+                      point_size => 3,
+                      point_style => { fill => "blue" }
+                    },
+                    { points => $stations,
+                      point_size => 5,
+                      point_style => { fill => "red" }
+                    } ];
+  my $plot = SVG::Plot->new(
+                             pointsets => $pointsets,
+		             scale => 0.025,
+                             max_width => 800,
+                             max_height => 400
+                           );
+   
+you can supply a grid in the format 
+
+  SVG::Plot->new(
+    grid => { min_x => 1,
+              min_y => 2,
+              max_x => 15,
+              max_y => 16 }
+              );
+
+or
+
+  $plot->grid($grid)
+
+this is like a viewbox that shifts the boundaries of the plot.
+
+if it's not specified, the module works out the viewbox from the highest and lowest X and Y co-ordinates in the list(s) of points.
+
+Note that the actual margin will be half of the value set
+in C<margin>, since half of it goes to each side.
+
+If C<max_width> and/or C<max_height> is set then C<scale> will be
+reduced if necessary in order to keep the width down.
+
+If C<debug> is set to true then debugging information is emitted as
+warnings.
+
+All arguments have get_set accessors like so:
+
+  $plot->point_size(3);
+
+The C<point_size>, C<point_style> attributes of the SVG::Plot object
+will be used as defaults for any pointsets that don't have their own
+style set.
+
+=cut
+
+=item B<plot>
+
+  print $plot->plot;
+
+C<plot> will croak if the object has a C<max_width> or C<max_height>
+attribute that is smaller than its C<margin> attribute, since this is
+impossible.
+
+=cut
 
 sub plot {
     my $self = shift;
     my $points = $self->points;
-    croak "no points to plot!" if not $points;
+    my $pointsets = $self->pointsets;
+    croak "no points to plot!" unless ( $points or $pointsets );
     my $grid = $self->grid;
 
     if (not $grid) {
-	$grid = $self->work_out_grid($points);
+	$grid = $self->work_out_grid;
     }
 
     my $scale = $self->scale || 10;
@@ -91,31 +183,61 @@ sub plot {
 			      );
     }
 
-    my $point_style = $self->point_style;
-    $point_style ||= {
-	stroke => 'red',
-	fill => 'white',
-    };
+    # Process each pointset.
+    my @pointset_data;
 
-    my $z=$svg->tag('g',
-		    id    => 'group_z',
-		    style => $point_style
-		    );
+    if ( $self->points ) {
+        push @pointset_data, { points      => $self->points,
+			       point_size  => $self->point_size,
+			       point_style => $self->point_style,
+			       line        => $self->line,
+			       line_style  => $self->line_style };
+    }
 
-    my $point_size = $self->point_size || 3;
+    foreach my $pointset ( @{$self->pointsets || []} ) {
+        push @pointset_data, $pointset;
+    }
+
+    foreach my $dataset ( @pointset_data ) {
+        $self->_plot_pointset( svg         => $svg,
+			       margin      => $m,
+			       grid        => $grid,
+			       scale       => $scale,
+                               %$dataset );
+    }
+
+    return $svg->xmlify;
+}
+
+# Adds a pointset to the SVG plot - pass in args svg, margin, grid, scale,
+# points, point_size, point_style, line, line_style.
+sub _plot_pointset {
+    my ($self, %args) = @_;
+    my $points = $args{points} or croak "no points in pointset!";
+    my $svg = $args{svg} or croak "no SVG object passed";
+    my $scale = $args{scale} or croak "no scale passed";
+
+    my $point_style = $args{point_style} || { stroke => 'red',
+					      fill => 'white' };
+
+    my $z = $svg->tag( 'g',
+	               id    => 'group_'.$self->random_id,
+	               style => $point_style
+	             );
+
+    my $point_size = $args{point_size} || 3;
     my $plotted;
 
     foreach (@$points) {
-
 	# adding a margin ... 
-	my $halfm = $m / 2;
+	my $halfm = $args{margin} / 2;
 
 	my ($x,$y) = ($_->[0],$_->[1]);
 	my $href = $_->[2] || $self->random_id;
 	
 	# svg is upside-down
-	$x = int(($x - $grid->{min_x})*$scale) + $halfm;
-	$y = int(($grid->{max_y} - $y)*$scale) + $halfm;
+	$x = int(($x - $args{grid}->{min_x})*$scale) + $halfm;
+	$y = int(($args{grid}->{max_y} - $y)*$scale) + $halfm;
 
 	push @$plotted, [$x,$y,$href];
 	my $id = $self->random_id;
@@ -130,8 +252,8 @@ sub plot {
 						  );
     }
 
-    if (my $line = $self->line) {
-	my $style = $self->line_style;
+    if (my $line = $args{line}) {
+	my $style = $args{line_style};
 	$style ||= {  'stroke-width' => 2, stroke => 'blue'  };
 
 	if ($line eq 'follow') {
@@ -147,20 +269,29 @@ sub plot {
 	    }
 	}
     }
-    return $svg->xmlify;
 }
 
 sub work_out_grid {
-    my ($self,$points) = @_;
+    my $self = shift;
+    my $all_points = $self->points;
+    my $pointsets = $self->pointsets;
 
-    my $start = $points->[0];
+    if ( $pointsets ) {
+        foreach my $pointset ( map { $_->{points} } @$pointsets ) {
+            foreach my $point ( @$pointset ) {
+                push @$all_points, $point;
+            }
+        }
+    }
+
+    my $start = $all_points->[0];
     my ($lx,$ly,$hx,$hy);
     $lx = $start->[0];
     $hx = $lx;
     $ly = $start->[1];
     $hy = $ly;
 
-    foreach (@$points) {
+    foreach (@$all_points) {
 
 	$lx = $_->[0] if ($_->[0] <= $lx); 
 	$ly = $_->[1] if ($_->[1] <= $ly);
@@ -179,44 +310,27 @@ sub random_id {
     my @t = (0..9);
     return '_:id'.join '', (map { @t[rand @t] } 0..6);
 }
+
+=back
+
+=cut
     
 1;
 
-=head1 DESCRIPTION
-
-a very simple module which allows you to give a set of points [x co-ord, y co-ord and optional http uri]) and plot them in SVG. 
-
-$plot->points($points) where $points is a reference to an array of array references. 
-
-see the SYNOPSIS for a list of parameters you can give to the plot. (overriding the styles on the ponts; sizing a margin; setting a scale; optionally drawing a line ( line => 'follow' ) between the points in the order they are specified.
-
-you can supply a grid in the format 
-SVG::Plot->new(
-    grid => { min_x => 1,
-              min_y => 2,
-              max_x => 15,
-              max_y => 16 }
-              );
-
-or $plot->grid($grid)
-
-this is like a viewbox that shifts the boundaries of the plot.
-
-if it's not specified, the module works out the viewbox from the highest and lowest X and Y co-ordinates in the list of points.
-
 =head1 NOTES
 
-this is a very, very early draft, released so Kake can use it in OpenGuides without having non-CPAN dependencies.
+this is an early draft, released mostly so Kake can use it in OpenGuides without having non-CPAN dependencies.
 
-for an example of what i should be able to do with this, see http://space.frot.org/rdf/tubemap.svg ... a better way of making meta-information between the lines, some kind of matrix drawing
+for an example of what one should be able to do with this, see http://space.frot.org/rdf/tubemap.svg ... a better way of making meta-information between the lines, some kind of matrix drawing; cf the grubstreet link below, different styles according to locales, sets, conceptual contexts... 
 
-also, i want to supply access to different plotting algorithms, not just for the cartesian plane; particularly the buckminster fuller dymaxion map; cf Geo::Dymaxion, when that gets released (http://iconocla.st/hacks/dymax/ )
+it would be fun to supply access to different plotting algorithms, not just for the cartesian plane; particularly the buckminster fuller dymaxion map; cf Geo::Dymaxion, when that gets released (http://iconocla.st/hacks/dymax/ )
 
-to see work in progress, http://frot.org/hacks/svgplot/ ; suggestions appreciated.
+to see work in progress, http://un.earth.li/~kake/cgi-bin/plot2.cgi?cat=Pubs&cat=Restaurants&cat=Tube&colour_diff_this=loc&action=display 
 
 =head1 BUGS
 
-full of them i am sure; this is a very alpha release; i won't change existing the API (if it deserves the name) though.
+possibly. this is alpha in terms of functionality, beta in terms of code; the API won't break backwards, though. 
+
 
 =head1 AUTHOR
 

@@ -4,3 +4,4 @@ MANIFEST
 Plot.pm
 README
 t/1.t
+t/grid.t
