@@ -1,5 +1,9 @@
 Revision history for Perl extension SVG::Plot.
 
+0.06  Fixed uninitialised value warning caught by Ronan Oger.
+
+      Added 'svg_options' parameter to pass options through to SVG.pm
+
 0.05  Optionally use Algorithm::Points::MinimumDistance to work out the
       radii for the plotted points.
 

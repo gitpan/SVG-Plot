@@ -1,4 +1,5 @@
 use strict;
+local $^W = 1;
 use Test::XML::XPath;
 use XML::XPath;
 use Test::More tests => 23;

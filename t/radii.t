@@ -37,6 +37,4 @@ $plot = SVG::Plot->new( points     => $points,
 $output = $plot->plot;
 like( $output, qr/r="4"/, "plot circles don't overlap even when scaling" );
 
-print $output;
-
 # min and max ignored if not AUTO

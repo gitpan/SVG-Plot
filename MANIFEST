@@ -6,3 +6,4 @@ README
 t/1.t
 t/grid.t
 t/radii.t
+t/svg_options.t
