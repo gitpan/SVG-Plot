@@ -1,5 +1,7 @@
 Revision history for Perl extension SVG::Plot.
 
+0.03  Added max_height and max_width parameters, added tests.
+
 0.01  Sat May 10 22:23:00 2003
 	- original version; created by h2xs 1.22 with options
 		SVG::Plot -X

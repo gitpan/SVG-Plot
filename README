@@ -1,38 +1,80 @@
-SVG/Plot version 0.01
-=====================
+NAME
+       SVG::Plot - a simple module to take a set of x,y points and plot them on a plane
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+SYNOPSIS
+       use SVG::Plot;
+       my $points = [[0,1,'http://uri/'],[2,3,'/uri/foo.png]];
+       my $plot = SVG::Plot->new(
+                                  points => \@points,
+                                  debug => 0,
+                                  scale => 0.025,
+                                  max_width => 800,
+                                  max_height => 400,
+                                  point_size => 3,
+                                  point_style => {
+                                  fill => 'blue',
+                                  stroke => 'yellow'},
+                                  line => 'follow',
+                                  margin => 6,
+                                ); 
+       # -- or --
+       $plot->points($points);
+       $plot->scale(4);
 
-A README file is required for CPAN modules since CPAN extracts the
-README file from a module distribution so that people browsing the
-archive can use it get an idea of the modules uses. It is usually a
-good idea to provide version information here so that people can
-decide whether fixes for the module are worth downloading.
+       print $plot->plot;
 
-INSTALLATION
+    If "debug" is set to true then debugging information is emitted as
+    warnings. Note that the actual margin will be half of the value set in
+    "margin", since half of it goes to each side. If "max_width" and/or
+    "max_height" is set then "scale" will be reduced if necessary in order
+    to keep the width down.
 
-To install this module type the following:
+    "plot" will croak if "max_width" or "max_height" is smaller than
+    "margin", since this is impossible.
 
-   perl Makefile.PL
-   make
-   make test
-   make install
+DESCRIPTION
+    a very simple module which allows you to give a set of points [x co-ord,
+    y co-ord and optional http uri]) and plot them in SVG.
 
-DEPENDENCIES
+    $plot->points($points) where $points is a reference to an array of array
+    references.
 
-This module requires these other modules and libraries:
+    see the SYNOPSIS for a list of parameters you can give to the plot.
+    (overriding the styles on the ponts; sizing a margin; setting a scale;
+    optionally drawing a line ( line => 'follow' ) between the points in the
+    order they are specified.
 
-  blah blah blah
+    you can supply a grid in the format SVG::Plot->new( grid => { min_x =>
+    1, min_y => 2, max_x => 15, max_y => 16 } );
 
-COPYRIGHT AND LICENCE
+    or $plot->grid($grid)
 
-Put the correct copyright and licence information here.
+    this is like a viewbox that shifts the boundaries of the plot.
 
-Copyright (C) 2003 jo walsh
+    if it's not specified, the module works out the viewbox from the highest
+    and lowest X and Y co-ordinates in the list of points.
 
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself. 
+NOTES
+    this is a very, very early draft, released so Kake can use it in
+    OpenGuides without having non-CPAN dependencies.
+
+    for an example of what i should be able to do with this, see
+    http://space.frot.org/rdf/tubemap.svg ... a better way of making
+    meta-information between the lines, some kind of matrix drawing
+
+    also, i want to supply access to different plotting algorithms, not just
+    for the cartesian plane; particularly the buckminster fuller dymaxion
+    map; cf Geo::Dymaxion, when that gets released
+    (http://iconocla.st/hacks/dymax/ )
+
+    to see work in progress, http://frot.org/hacks/svgplot/ ; suggestions
+    appreciated.
+
+BUGS
+    full of them i am sure; this is a very alpha release; i won't change
+    existing the API (if it deserves the name) though.
+
+AUTHOR
+        Jo Walsh  ( jo@london.pm.org )
+        Kate L Pugh ( kake@earth.li )
 

@@ -2,61 +2,53 @@
 
    SVG::Plot - a simple module to take a set of x,y points and plot them on a plane
 
-=head1 ABSTRACT
-
-   use SVG::Plot;
-   my $points = [[0,1,'http://uri/'],[2,3,'/uri/foo.png]];
-   my $plot = SVG::Plot->(
-                           points => \@points,
-			   scale => 0.025,
-			   point_size => 3,
-			   point_style => {
-			   fill => 'blue',
-			   stroke => 'yellow'},
-      			   line => 'follow',
-                           margin => 6,
-           ); 
-   # -- or --
-   $plot->points($points);
-   $plot->scale(4);
-
-   print $plot->plot;
-
 =head1 SYNOPSIS
 
    use SVG::Plot;
    my $points = [[0,1,'http://uri/'],[2,3,'/uri/foo.png]];
-   my $plot = SVG::Plot->(
-                           points => \@points,
-			   scale => 0.025,
-			   point_size => 3,
-			   point_style => {
-			   fill => 'blue',
-			   stroke => 'yellow'},
-      			   line => 'follow',
-                           margin => 6,
-           ); 
+   my $plot = SVG::Plot->new(
+                              points => \@points,
+                              debug => 0,
+			      scale => 0.025,
+                              max_width => 800,
+                              max_height => 400,
+			      point_size => 3,
+			      point_style => {
+			      fill => 'blue',
+			      stroke => 'yellow'},
+      			      line => 'follow',
+                              margin => 6,
+                            ); 
    # -- or --
    $plot->points($points);
    $plot->scale(4);
 
    print $plot->plot;
+
+If C<debug> is set to true then debugging information is emitted as
+warnings.  Note that the actual margin will be half of the value set
+in C<margin>, since half of it goes to each side.  If C<max_width>
+and/or C<max_height> is set then C<scale> will be reduced if necessary
+in order to keep the width down.
+
+C<plot> will croak if C<max_width> or C<max_height> is smaller than
+C<margin>, since this is impossible.
 
 =cut
 
 package SVG::Plot;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 use strict;
 use SVG;
+use Carp qw( croak );
 
-
-use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( grid scale points image point_style point_size margin line line_style ) ];
+use Class::MethodMaker new_hash_init => 'new', get_set => [ qw( debug grid scale points image point_style point_size margin line line_style max_width max_height ) ];
 
 sub plot {
     my $self = shift;
     my $points = $self->points;
-    die "no points to plot!" if not $points;
+    croak "no points to plot!" if not $points;
     my $grid = $self->grid;
 
     if (not $grid) {
@@ -64,11 +56,31 @@ sub plot {
     }
 
     my $scale = $self->scale || 10;
+    my $m = $self->margin || 10;
+    
+    # Reduce scale if necessary to fit to width constraint.
+    if ( $self->max_width ) {
+        my $max_plot_width = $self->max_width - $m; # Account for margin
+        croak "max_width must be larger than margin"
+	    if $max_plot_width <= 0;
+        my $x_extent = $grid->{max_x} - $grid->{min_x};
+        my $max_width_scale = $max_plot_width / $x_extent;
+        $scale = $max_width_scale if $scale > $max_width_scale;
+    }
+
+    # Reduce scale further if necessary to fit to height constraint.
+    if ( $self->max_height ) {
+        my $max_plot_height = $self->max_height - $m; # Account for margin
+        croak "max_height must be larger than margin"
+	    if $max_plot_height <= 0;
+        my $y_extent = $grid->{max_y} - $grid->{min_y};
+        my $max_height_scale = $max_plot_height / $y_extent;
+        $scale = $max_height_scale if $scale > $max_height_scale;
+    }
+
     my $h = int(($grid->{max_y} - $grid->{min_y})*$scale);
     my $w = int(($grid->{max_x} - $grid->{min_x})*$scale);
  
-    my $m = $self->margin || 10;
-    
     my $svg = SVG->new( width => $w+$m, height => $h+$m ); # make a little margin +10
 
     if (my $map = $self->image) {
@@ -107,7 +119,7 @@ sub plot {
 
 	push @$plotted, [$x,$y,$href];
 	my $id = $self->random_id;
-	warn("anchor_$id");
+	warn("anchor_$id") if $self->debug;;
 
 	$z->anchor(id => "anchor_".$id,
 		   -href => $href,
@@ -209,6 +221,7 @@ full of them i am sure; this is a very alpha release; i won't change existing th
 =head1 AUTHOR
 
     Jo Walsh  ( jo@london.pm.org )
+    Kate L Pugh ( kake@earth.li )
 
 =cut
 
